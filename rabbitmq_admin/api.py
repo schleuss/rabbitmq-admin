@@ -1,6 +1,6 @@
 from rabbitmq_admin.base import Resource
 from six.moves import urllib
-
+from requests.exceptions import HTTPError
 
 class AdminAPI(Resource):
     """
@@ -182,7 +182,7 @@ class AdminAPI(Resource):
             urllib.parse.quote_plus(vhost)
         ))
 
-    def get_exchange_for_vhost(self, exchange, vhost):
+    def get_exchange_for_vhost(self, exchange, vhost, ignore_error=True):
         """
         An individual exchange
 
@@ -192,10 +192,15 @@ class AdminAPI(Resource):
         :param vhost: The vhost name
         :type vhost: str
         """
-        return self._api_get('/api/exchanges/{0}/{1}'.format(
-            urllib.parse.quote_plus(vhost),
-            urllib.parse.quote_plus(exchange)
-        ))
+        try:
+            return self._api_get('/api/exchanges/{0}/{1}'.format(
+                urllib.parse.quote_plus(vhost),
+                urllib.parse.quote_plus(exchange)
+            ))
+        except HTTPError as err:
+            if ignore_error:
+                return None
+            raise err
 
     def create_exchange_for_vhost(self, exchange, vhost, body):
         """
@@ -228,6 +233,40 @@ class AdminAPI(Resource):
                 urllib.parse.quote_plus(exchange)),
             data=body
         )
+
+    def create_exchange_bind_for_vhost(self, exchange, queue, vhost, body):
+        """
+        Create an exchange bind.
+        The body should look like:
+        ::
+            {
+                "routing_key":"",
+                "arguments":{}
+            }
+
+        The type key is mandatory; other keys are optional.
+
+        :param exchange: The exchange name
+        :type exchange: str
+
+        :param queue: The queue name
+        :type exchange: str
+
+        :param vhost: The vhost name
+        :type vhost: str
+
+        :param body: A body for the exchange.
+        :type body: dict
+        """
+
+        self._api_post(
+            '/api/bindings/{0}/e/{1}/q/{2}'.format(
+                urllib.parse.quote_plus(vhost),
+                urllib.parse.quote_plus(exchange),
+                urllib.parse.quote_plus(queue)),
+            data=body
+        )
+
 
     def delete_exchange_for_vhost(self, exchange, vhost, if_unused=False):
         """
@@ -599,7 +638,7 @@ class AdminAPI(Resource):
             data=body
         )
 
-    def get_queue_for_vhost(self, queue, vhost):
+    def get_queue_for_vhost(self, queue, vhost, ignore_error=False):
         """
         An individual queue
 
@@ -608,11 +647,22 @@ class AdminAPI(Resource):
 
         :param vhost: The vhost name
         :type vhost: str
+
+        :param ignore_error: Ignore error on queue not found
+        :type ignore_error: boolean
+
         """
-        return self._api_get('/api/queues/{0}/{1}'.format(
-            urllib.parse.quote_plus(vhost),
-            urllib.parse.quote_plus(queue)
-        ))
+
+        try: 
+            return self._api_get('/api/queues/{0}/{1}'.format(
+                urllib.parse.quote_plus(vhost),
+                urllib.parse.quote_plus(queue)
+            ))
+        except HTTPError as err:
+            if ignore_error:
+                return None
+            raise err
+
 
     def list_queues(self):
         """
